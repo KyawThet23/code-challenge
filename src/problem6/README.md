@@ -104,6 +104,40 @@ X-Idempotency-Key: <UUID> (required - prevents duplicate submissions)
 
 ---
 
+### PostgreSQL Schema
+
+```sql
+-- Users table
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    total_score INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for leaderboard queries (if Redis is unavailable)
+CREATE INDEX idx_users_total_score ON users(total_score DESC);
+
+-- Score history table (audit trail)
+CREATE TABLE score_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    action_id VARCHAR(100) NOT NULL,
+    score_delta INTEGER NOT NULL,
+    new_total INTEGER NOT NULL,
+    idempotency_key UUID NOT NULL UNIQUE,
+    ip_address INET,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for user score lookups
+CREATE INDEX idx_score_history_user_id ON score_history(user_id);
+-- Index for duplicate action detection
+CREATE INDEX idx_score_history_action_id ON score_history(action_id);
+```
+
 ## Logging, Monitoring & Auditing
 
 - **Request tracing**: Unique `X-Request-ID` header attached to every request
